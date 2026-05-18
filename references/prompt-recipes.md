@@ -1,45 +1,45 @@
-# Prompt Recipes
+# 提示词配方
 
-Use these as compact building blocks. Combine only the clauses that match the user's intent.
+用这些片段作为紧凑的构建块，按需组合与用户意图匹配的子句。
 
-## Subject Preservation
+## 主体保留
 
-- Keep the original subject, structure, material, color, logo, text, and product details unchanged.
-- Do not invent extra parts, labels, accessories, watermarks, or brand marks.
-- Improve lighting and composition without changing the object identity.
+- 保持原始主体的结构、材质、颜色、Logo、文字和产品细节不变。
+- 不得凭空添加额外零件、标签、配件、水印或品牌标识。
+- 改善光线和构图，但不改变物体本身。
 
-## Ecommerce Main Image
+## 电商主图
 
-- Create a clean ecommerce main image with bright, even lighting.
-- Put the product centered and clearly visible.
-- Use a simple white or light neutral background unless the user asks for a scene.
-- Avoid busy props, excessive decoration, fake text, and dramatic effects.
+- 生成光线明亮、均匀的电商主图。
+- 产品居中且清晰可见。
+- 除非用户要求场景，否则使用简洁的白色或浅色中性背景。
+- 避免繁杂道具、过度装饰、虚假文字和夸张效果。
 
-## Ecommerce Scene Image
+## 电商场景图
 
-- Place the unchanged product in a realistic use scene that matches its function.
-- Keep the background believable, softly lit, and secondary to the product.
-- Avoid fantasy, clutter, exaggerated scale, and unrelated objects.
+- 将不变的产品置于与其功能相符的真实使用场景中。
+- 背景可信、光线柔和，且处于次要位置，不抢产品的主体。
+- 避免幻想感、杂乱、夸大比例和无关物体。
 
-## Social Cover
+## 社交封面
 
-- Create an eye-catching social media cover while keeping the subject recognizable.
-- Leave clean negative space for later title text if requested.
-- Use stronger composition, richer lighting, and platform-appropriate framing.
+- 生成吸引眼球的社交媒体封面，同时保持主体可辨认。
+- 如有需要，为后期添加标题文字预留干净的留白区域。
+- 使用更强的构图、更丰富的光线，以及适合平台的画幅。
 
-## Background Replacement
+## 背景替换
 
-- Replace only the background.
-- Preserve the subject edges, reflections, shadows, labels, and proportions.
-- Match the new background lighting and perspective to the original subject.
+- 仅替换背景。
+- 保留主体的边缘、反光、阴影、标签和比例。
+- 新背景的光线和透视需与原始主体匹配。
 
-## Style Variants
+## 风格变体
 
-For multi-output jobs, generate one prompt per variant:
+多输出任务时，每个变体生成一条提示词：
 
-- Clean commercial
-- Realistic lifestyle scene
-- Premium editorial
-- Minimal studio
-- Warm home scene
-- Outdoor natural scene
+- 干净商业风
+- 真实生活场景
+- 高端杂志风
+- 极简棚拍
+- 温馨家居场景
+- 户外自然场景

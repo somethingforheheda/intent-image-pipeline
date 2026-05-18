@@ -1,57 +1,57 @@
 ---
 name: intent-image-pipeline
-description: Natural-language image generation and image-editing workflow automation. Use when users ask Codex to create, edit, restyle, batch-generate, or transform images from plain-language intent, especially product photos, ecommerce main images, scene images, social covers, avatars, background replacement, batch image-to-image jobs, prompt expansion, retryable generation pipelines, or image workflow configuration.
+description: 自然语言图像生成与编辑工作流自动化。当用户要求创建、编辑、批量生成或转换图片时使用，适用场景包括：产品图、电商主图、场景图、社交封面、头像、背景替换、批量图生图、提示词扩展、可重试生成流水线、图像工作流配置等。
 ---
 
 # Intent Image Pipeline
 
-## Overview
+## 概述
 
-Turn a user's plain-language image intent into a runnable generation job. Prefer the bundled `scripts/image_pipeline.py` runner for batch image-to-image work because it handles cross-platform config discovery, retries, logs, missing-output checks, and resume behavior.
+将用户的自然语言图像意图转换为可运行的生成任务。批量图生图工作优先使用内置的 `scripts/image_pipeline.py`，它负责跨平台配置发现、重试、日志、缺失输出检测和断点续跑。
 
-## Hard Stop Rules
+## 强制停止规则
 
-- The `size` field (width and height) must each be a multiple of 16. If the user specifies a resolution that does not satisfy this (e.g. `1000x1000`, `1920x1080`), do not proceed — tell the user the exact values are invalid and suggest the nearest valid alternatives (e.g. `1008x1008`, `1920x1072` or `1024x1088`). Never silently round or adjust the resolution yourself.
-- If the AI image API cannot run because of a missing/invalid API key, unreachable base URL, quota/rate limit, network failure, timeout, or upstream service error, stop the workflow after analyzing the log.
-- Never silently replace an AI image-generation or image-editing job with local PIL/OpenCV filters, screenshots, placeholder images, mock outputs, non-AI image processing, or any approximate substitute.
-- Offer a non-AI fallback only after explicitly telling the user it is not AI generation and receiving clear permission from the user.
-- When blocked, explain the blocker, the exact next action, and whether the same job can be safely rerun. Do not create alternate images to "make progress."
+- `size` 字段的宽和高必须都是 16 的倍数。如果用户指定的分辨率不满足此条件（例如 `1000x1000`、`1920x1080`），不得继续执行——直接告知用户该值无效，并给出最近的合法备选值（例如 `1008x1008`、`1920x1072` 或 `1024x1088`）。不得自行静默修改分辨率。
+- 如果 AI 图像 API 因以下原因无法运行：密钥缺失/无效、base URL 不可达、配额/限流、网络故障、超时或上游服务错误，分析日志后停止工作流。
+- 不得静默地将 AI 图像生成或编辑任务替换为本地 PIL/OpenCV 滤镜、截图、占位图、模拟输出、非 AI 图像处理或任何近似替代方案。
+- 只有在明确告知用户"这不是 AI 生成"并得到用户明确同意后，才可以提供非 AI 降级方案。
+- 遇到阻塞时，说明阻塞原因、下一步具体操作，以及同一任务是否可以安全重跑。不得为了"推进进度"而生成替代图片。
 
-## Workflow
+## 工作流程
 
-1. Clarify only blocking details: input path, desired output style/use case, output count per source image, and whether the subject must remain unchanged. Make conservative defaults when the user intent is clear enough.
-2. Read `references/workflow-patterns.md` to choose a job shape when the request is broad or ambiguous.
-3. Read `references/prompt-recipes.md` when prompt wording needs domain-specific guardrails, style variants, or subject-preservation language.
-4. Create a job JSON file near the user's working files or in a temporary working directory. Do not put API keys in job files.
-5. For first runs or risky batches, run a smoke test before the full batch:
+1. 只询问阻塞性细节：输入路径、期望的输出风格/用途、每张源图的输出数量，以及主体是否必须保持不变。用户意图足够清晰时，使用保守的默认值。
+2. 需求宽泛或模糊时，读取 `references/workflow-patterns.md` 选择合适的任务形状。
+3. 需要特定领域的提示词约束、风格变体或主体保留语言时，读取 `references/prompt-recipes.md`。
+4. 在用户的工作文件附近或临时工作目录中创建 job JSON 文件。不得在 job 文件中写入 API 密钥。
+5. 首次运行或高风险批量任务，在执行完整任务前先跑冒烟测试：
 
 ```bash
 python3 /path/to/intent-image-pipeline/scripts/image_pipeline.py --job /path/to/job.json --smoke-test
 ```
 
-6. If the smoke test succeeds, run the full job. If the smoke test fails, stop and explain the diagnosis; do not switch tools or generation methods.
+6. 冒烟测试通过后执行完整任务。失败则停止并说明诊断结果，不得切换工具或生成方式。
 
 ```bash
 python3 /path/to/intent-image-pipeline/scripts/image_pipeline.py --job /path/to/job.json
 ```
 
-7. Report the output directory, total target count, completed count, and any failed/missing tasks.
-8. If the runner fails or produces fewer outputs than expected, read `run.log` yourself and translate the likely cause into plain language. Do not ask beginner users to inspect logs manually.
+7. 汇报输出目录、目标总数、已完成数量以及任何失败/缺失的任务。
+8. 如果脚本失败或输出数量少于预期，自行读取 `run.log` 并将可能原因翻译成用户能理解的语言。不要让新手用户自己去看日志。
 
-## User Config
+## 用户配置
 
-The runner reads credentials from a dedicated image-generation config file or dedicated image-generation environment variables. Never read or reuse a general Codex/OpenAI chat key such as `OPENAI_API_KEY` for this workflow. Never hard-code a key into the skill, job JSON, or scripts.
+脚本从专用生图配置文件或专用生图环境变量中读取凭据。不得读取或复用通用的 Codex/OpenAI 对话密钥（如 `OPENAI_API_KEY`）。不得将密钥硬编码到 skill、job JSON 或脚本中。
 
-Default config paths:
+默认配置路径：
 
-- macOS/Linux: `~/.config/qijixing-image/config.json`
-- Windows: `%APPDATA%\qijixing-image\config.json`
+- macOS/Linux：`~/.config/qijixing-image/config.json`
+- Windows：`%APPDATA%\qijixing-image\config.json`
 
-Optional config path override:
+可选配置路径覆盖：
 
 - `QIJIXING_IMAGE_CONFIG`
 
-Supported config keys:
+支持的配置字段：
 
 ```json
 {
@@ -63,23 +63,23 @@ Supported config keys:
 }
 ```
 
-Resolution order:
+解析优先级：
 
-1. CLI overrides
-2. Dedicated environment variables: `QIJIXING_IMAGE_API_KEY`, `QIJIXING_IMAGE_BASE_URL`
-3. User config file
-4. Defaults, with `base_url` defaulting to `https://api.qijixing.fun/v1`
+1. CLI 参数覆盖
+2. 专用环境变量：`QIJIXING_IMAGE_API_KEY`、`QIJIXING_IMAGE_BASE_URL`
+3. 用户配置文件
+4. 默认值（`base_url` 默认为 `https://api.qijixing.fun/v1`）
 
-If no config file exists, tell the user where to create it. If the user pastes a key into chat and asks for setup, immediately write it to the dedicated config file, then warn that the key was exposed in the conversation and recommend rotating it and replacing the file value.
+配置文件不存在时，告知用户应在哪里创建。如果用户在对话中粘贴密钥并要求配置，立即将其写入专用配置文件，然后提醒该密钥已在对话中暴露，建议重新生成并替换配置文件中的值。
 
-## Job JSON
+## Job JSON 格式
 
-Use this shape for generated jobs:
+生成任务时使用以下结构：
 
 ```json
 {
-  "input_dir": "/absolute/path/to/input-images",
-  "output_dir": "/absolute/path/to/output-images",
+  "input_dir": "/绝对路径/输入图片目录",
+  "output_dir": "/绝对路径/输出图片目录",
   "prompts": [
     "Keep the product unchanged. Create a clean bright ecommerce main image."
   ],
@@ -95,12 +95,12 @@ Use this shape for generated jobs:
 }
 ```
 
-Use absolute paths when possible. `prompts` may be generated from the user intent; include one prompt per requested output variant.
+尽量使用绝对路径。`prompts` 可根据用户意图生成，每个输出变体对应一条提示词。
 
-## Output Rules
+## 输出规则
 
-- Preserve original source files.
-- Put outputs under `output_dir/<source-file-stem>/prompt_XX.<format>` for image-to-image batches.
-- Let the runner resume by skipping existing output files.
-- When failures occur, inspect `run.log`, use the runner's `failure_summary`, and read `references/troubleshooting.md` for common fixes.
-- Summarize results in user language; include the most likely cause and next action. Avoid exposing raw API errors unless they help the user act.
+- 保留原始源文件，不得修改。
+- 批量图生图时，输出放在 `output_dir/<源文件名>/prompt_XX.<格式>` 下。
+- 脚本跳过已存在的输出文件，支持断点续跑。
+- 出现失败时，检查 `run.log`、脚本的 `failure_summary`，并参考 `references/troubleshooting.md` 的常见修复方法。
+- 用用户能理解的语言汇报结果，包含最可能的原因和下一步操作。除非原始 API 错误信息有助于用户采取行动，否则不要直接暴露它。

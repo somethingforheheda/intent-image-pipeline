@@ -1,53 +1,53 @@
-# Workflow Patterns
+# 工作流模式
 
-## Decision Table
+## 决策表
 
-| User intent | Job shape |
+| 用户意图 | 任务形状 |
 |---|---|
-| "batch", "folder", "each image" | Use `input_dir`, one output subfolder per source image |
-| "make N versions" | Create N prompts, one prompt per variant |
-| "product must not change" | Add subject-preservation clauses to every prompt |
-| "main image" | Use ecommerce main image recipe, usually `1024x1024` |
-| "scene image" | Use ecommerce scene image recipe |
-| "cover/poster" | Ask or infer aspect ratio; use social cover recipe |
-| First-time user or large batch | Run `--smoke-test` before the full job |
-| Smoke test fails | Stop, analyze `run.log`, explain the blocker, and wait for the user |
-| Interrupted or partial AI job | Re-run the same job; existing outputs are skipped |
+| "批量"、"文件夹"、"每张图" | 使用 `input_dir`，每张源图对应一个输出子文件夹 |
+| "生成 N 个版本" | 创建 N 条提示词，每个变体对应一条 |
+| "产品不能变" | 每条提示词都加入主体保留子句 |
+| "主图" | 使用电商主图配方，通常为 `1024x1024` |
+| "场景图" | 使用电商场景图配方 |
+| "封面/海报" | 询问或推断宽高比；使用社交封面配方 |
+| 首次使用或大批量任务 | 完整任务前先跑 `--smoke-test` |
+| 冒烟测试失败 | 停止，分析 `run.log`，说明阻塞原因，等待用户处理 |
+| 任务中断或部分完成 | 重新跑同一个任务，已有输出会自动跳过 |
 
-## Forbidden Fallbacks
+## 禁止的降级方案
 
-Do not use any of these as an automatic replacement for AI generation:
+以下方式不得作为 AI 生成的自动替代：
 
-- PIL, OpenCV, ImageMagick, canvas, CSS, or local filter effects
-- Placeholder, mock, contact-sheet-only, or preview-only image creation
-- Screenshot-based or browser-rendered substitutes
-- A different image model, local model, or unrelated service unless the user explicitly approves the switch
+- PIL、OpenCV、ImageMagick、canvas、CSS 或本地滤镜效果
+- 占位图、模拟图、仅联系表或仅预览的图片创建
+- 基于截图或浏览器渲染的替代方案
+- 不同的图像模型、本地模型或无关服务（除非用户明确批准切换）
 
-If a fallback might help, first say exactly what it is and that it is not the requested AI generation. Continue only after the user clearly agrees.
+如果降级方案可能有帮助，先明确说明它是什么以及它不是所请求的 AI 生成。只有用户明确同意后才继续。
 
-## Defaults
+## 默认值
 
-- `base_url`: `https://api.qijixing.fun/v1`
-- `model`: `gpt-image-2`
-- `size`: `1024x1024`
-- `quality`: `high`
-- `output_format`: `png`
-- `max_retries`: `2`
-- `max_rounds`: `5`
-- `recursive`: `false`
+- `base_url`：`https://api.qijixing.fun/v1`
+- `model`：`gpt-image-2`
+- `size`：`1024x1024`
+- `quality`：`high`
+- `output_format`：`png`
+- `max_retries`：`2`
+- `max_rounds`：`5`
+- `recursive`：`false`
 
-## Clarification Rules
+## 需要澄清的情况
 
-Ask a short question only if the task cannot run safely:
+只有在任务无法安全运行时，才提一个简短的问题：
 
-- Missing input path
-- Missing output location and no obvious nearby default
-- The user requires exact platform dimensions but did not name a platform or ratio
-- The user asks to use the image API but has not configured a dedicated image-generation key
-- The requested AI API failed smoke testing and no approved fallback exists
+- 缺少输入路径
+- 缺少输出位置且没有明显的就近默认值
+- 用户要求精确的平台尺寸但未指定平台或比例
+- 用户要求使用图像 API 但尚未配置专用生图密钥
+- 所请求的 AI API 冒烟测试失败且不存在已批准的降级方案
 
-Otherwise infer sensible defaults and explain them briefly before running.
+其他情况推断合理的默认值，并在运行前简要说明。
 
-## Job File Placement
+## Job 文件放置
 
-Prefer placing generated job files in the output directory as `job.json`. If the output directory does not exist yet, create it through the runner or place the job in a nearby temporary work directory.
+优先将生成的 job 文件放在输出目录中，命名为 `job.json`。如果输出目录尚不存在，通过脚本创建它，或将 job 放在附近的临时工作目录中。
