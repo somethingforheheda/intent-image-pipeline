@@ -11,6 +11,7 @@ Turn a user's plain-language image intent into a runnable generation job. Prefer
 
 ## Hard Stop Rules
 
+- The `size` field (width and height) must each be a multiple of 16. If the user specifies a resolution that does not satisfy this (e.g. `1000x1000`, `1920x1080`), do not proceed — tell the user the exact values are invalid and suggest the nearest valid alternatives (e.g. `1008x1008`, `1920x1072` or `1024x1088`). Never silently round or adjust the resolution yourself.
 - If the AI image API cannot run because of a missing/invalid API key, unreachable base URL, quota/rate limit, network failure, timeout, or upstream service error, stop the workflow after analyzing the log.
 - Never silently replace an AI image-generation or image-editing job with local PIL/OpenCV filters, screenshots, placeholder images, mock outputs, non-AI image processing, or any approximate substitute.
 - Offer a non-AI fallback only after explicitly telling the user it is not AI generation and receiving clear permission from the user.
