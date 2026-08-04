@@ -53,7 +53,7 @@ notepad "$env:APPDATA\qijixing-image\config.json"
 
 ## HTTP 5xx 或超时
 
-增大 `request_timeout`，保持 `max_rounds` 启用，重新跑同一个任务。已有输出会自动跳过。
+增大 `request_timeout` 后重新运行。文生图保持 `max_retries` 大于 1；图生图保持 `max_rounds` 启用。已有输出会自动跳过。
 
 用户提示：「上游服务临时失败或响应太慢。通常不是图片或提示词的问题，建议调大超时时间后重跑。」
 
@@ -73,7 +73,7 @@ notepad "$env:APPDATA\qijixing-image\config.json"
 
 ## Codex 汇报失败的方式
 
-不要让新手用户自己去打开日志。读取 `run.log`，查找 `failure_summary`、`[diagnosis]`、HTTP 状态码和最终缺失输出列表，然后汇报：
+不要让新手用户自己排查原始错误。图生图读取 `run.log`，查找 `failure_summary`、`[diagnosis]`、HTTP 状态码和最终缺失输出列表；文生图读取命令输出中的失败类别。然后汇报：
 
 - 哪些成功完成了
 - 哪些失败了

@@ -4,7 +4,8 @@ A [Codex](https://github.com/openai/codex) skill that turns plain-language image
 
 ## What it does
 
-- Generates or edits images from natural-language descriptions
+- Generates images directly from one or more natural-language prompts
+- Edits images from natural-language instructions
 - Supports batch image-to-image workflows
 - Handles retries, resume, and logging automatically
 - Works with any OpenAI-compatible image API (defaults to `api.qijixing.fun/v1`)
@@ -38,6 +39,19 @@ Just describe what you want in plain language:
 - "Restyle these photos to look like watercolor paintings"
 
 Codex will create a job file and run it via `scripts/image_pipeline.py`.
+
+For direct text-to-image generation, Codex runs:
+
+```bash
+python3 scripts/text_to_image.py \
+  --prompt "赛博朋克风格的城市夜景" \
+  --output-dir /path/to/output \
+  --size 1536x1024 \
+  --quality high
+```
+
+The script calls `POST /images/generations`, waits at least 120 seconds per
+request, retries transient failures, and decodes `data[0].b64_json` to an image.
 
 ## Job JSON example
 

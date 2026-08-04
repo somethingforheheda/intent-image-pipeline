@@ -1,4 +1,4 @@
 interface:
   display_name: "Intent Image Pipeline"
-  short_description: "Natural-language image workflow runner"
-  default_prompt: "Use $intent-image-pipeline to turn my image-generation intent into a runnable batch workflow."
+  short_description: "Text-to-image and image-edit workflow runner"
+  default_prompt: "Use $intent-image-pipeline to generate or edit images from my natural-language intent."
