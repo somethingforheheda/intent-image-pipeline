@@ -8,7 +8,7 @@
 | "批量"、"文件夹"、"每张图" | 使用 `input_dir`，每张源图对应一个输出子文件夹 |
 | "生成 N 个版本" | 创建 N 条提示词，每个变体对应一条 |
 | "产品不能变" | 每条提示词都加入主体保留子句 |
-| "主图" | 使用电商主图配方，通常为 `1024x1024` |
+| "主图" | 使用电商主图配方；需要精确尺寸时保留用户指定值，否则使用 `auto` |
 | "场景图" | 使用电商场景图配方 |
 | "封面/海报" | 询问或推断宽高比；使用社交封面配方 |
 | 首次使用或大批量任务 | 完整任务前先跑 `--smoke-test` |
@@ -29,9 +29,9 @@
 ## 默认值
 
 - `base_url`：`https://api.qijixing.fun/v1`
-- `model`：`gpt-image-2`
-- `size`：`1024x1024`
-- `quality`：`high`
+- `model`：`gpt-image-2.5-sunburst`，可显式选择 `gpt-image-2.5-flare` 或旧版 `gpt-image-2`
+- `size`：`auto`
+- `quality`：`auto`
 - `output_format`：`png`
 - `max_retries`：`2`
 - `max_rounds`：`5`

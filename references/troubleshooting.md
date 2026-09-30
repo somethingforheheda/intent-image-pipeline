@@ -53,13 +53,19 @@ notepad "$env:APPDATA\qijixing-image\config.json"
 
 ## HTTP 5xx 或超时
 
+Image 2.5 先核对完整模型 ID：使用 `gpt-image-2.5-sunburst` 或 `gpt-image-2.5-flare`，脚本不提供 `gpt-image-2.5` 别名。保持 `/images/generations` 或 `/images/edits` 路径。
+
+保留用户指定的质量和尺寸，不在重试时静默改成 `auto`。已有配置中的 `default_quality=high` 和 job 显式值会覆盖默认值；CLI 参数可显式覆盖配置/job。
+
 增大 `request_timeout` 后重新运行。文生图保持 `max_retries` 大于 1；图生图保持 `max_rounds` 启用。已有输出会自动跳过。
 
-用户提示：「上游服务临时失败或响应太慢。通常不是图片或提示词的问题，建议调大超时时间后重跑。」
+用户提示：「图像服务返回了错误或响应超时。请根据安全诊断调整超时或稍后重试。」
 
 停止规则：保持 AI 任务不变。调整超时/重试配置后重跑，不得创建非 AI 替代品。
 
 ## 找不到图片
+
+如果接口返回 HTTP 200 但 `data[0].b64_json` 缺失、为空或无效，仍未成功取得图片。两个脚本显式请求 `response_format=b64_json`，仅接受 Base64 图片数据；不得改为返回或下载 `url` 字段，不打印原始响应。不把 HTTP 200 单独视为出图成功。
 
 脚本支持 `.png`、`.jpg`、`.jpeg` 和 `.webp`。如果图片在子文件夹里，将 `recursive` 设为 `true`。
 

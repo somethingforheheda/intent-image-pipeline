@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import binascii
 import json
 import os
 import platform
@@ -18,9 +19,9 @@ import requests
 
 
 DEFAULT_BASE_URL = "https://api.qijixing.fun/v1"
-DEFAULT_MODEL = "gpt-image-2"
-DEFAULT_SIZE = "1024x1024"
-DEFAULT_QUALITY = "high"
+DEFAULT_MODEL = "gpt-image-2.5-sunburst"
+DEFAULT_SIZE = "auto"
+DEFAULT_QUALITY = "auto"
 DEFAULT_FORMAT = "png"
 CONFIG_ENV_VAR = "QIJIXING_IMAGE_CONFIG"
 API_KEY_ENV_VAR = "QIJIXING_IMAGE_API_KEY"
@@ -55,6 +56,54 @@ class JobConfig:
 
 Task = Tuple[Path, str, int, Path]
 Failure = Dict[str, str]
+
+
+class ImageResponseError(ValueError):
+    """A response error that never includes raw payloads or remote URLs."""
+
+
+def decode_image_response(response: requests.Response) -> bytes:
+    """Return image bytes only; never return or download remote image URLs."""
+    try:
+        encoded = response.json()["data"][0]["b64_json"]
+    except (ValueError, KeyError, IndexError, TypeError):
+        raise ImageResponseError(
+            "Image API response does not contain data[0].b64_json; URL responses are not accepted"
+        ) from None
+    if not isinstance(encoded, str) or not encoded:
+        raise ImageResponseError(
+            "Image API returned empty base64 image data; URL responses are not accepted"
+        )
+    try:
+        return base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError):
+        raise ImageResponseError("Image API returned invalid base64 image data") from None
+
+
+def safe_request_error(exc: Exception) -> str:
+    """Keep diagnostic categories without exposing remote URLs or raw bodies."""
+    if isinstance(exc, ImageResponseError):
+        return str(exc)
+    if isinstance(exc, requests.HTTPError):
+        status = getattr(exc.response, "status_code", None)
+        return f"Image API returned HTTP {status}" if isinstance(status, int) else "Image API returned an HTTP error"
+    if isinstance(exc, requests.Timeout):
+        return "Image API request timed out"
+    if isinstance(exc, requests.ConnectionError):
+        return "Image API connection failed"
+    return "Image API request failed"
+
+
+def report_image_size(image: bytes, requested_size: str, log) -> None:
+    """Report PNG dimensions without altering the generated image."""
+    if len(image) < 24 or not image.startswith(b"\x89PNG\r\n\x1a\n"):
+        return
+    width = int.from_bytes(image[16:20], "big")
+    height = int.from_bytes(image[20:24], "big")
+    actual_size = f"{width}x{height}"
+    log(f"[image] actual_size={actual_size}")
+    if requested_size != "auto" and requested_size != actual_size:
+        log(f"[warning] Requested size {requested_size}, received {actual_size}. The saved image does not meet the requested dimensions; no resizing was applied.")
 
 
 def user_config_path() -> Path:
@@ -117,7 +166,12 @@ def resolve_path(value: str, base_dir: Path) -> Path:
     return path
 
 
-def load_job_config(path: Path, runtime: RuntimeConfig, smoke_test: bool) -> JobConfig:
+def load_job_config(
+    path: Path,
+    runtime: RuntimeConfig,
+    smoke_test: bool,
+    overrides: Optional[argparse.Namespace] = None,
+) -> JobConfig:
     raw = load_json(path)
     base_dir = path.parent
 
@@ -137,10 +191,10 @@ def load_job_config(path: Path, runtime: RuntimeConfig, smoke_test: bool) -> Job
         output_dir=resolve_path(output_dir_raw, base_dir),
         prompts=[p.strip() for p in prompts],
         size=str(raw.get("size") or DEFAULT_SIZE),
-        quality=str(raw.get("quality") or runtime.quality),
-        output_format=str(raw.get("output_format") or runtime.output_format),
-        model=str(raw.get("model") or runtime.model),
-            request_timeout=int(raw.get("request_timeout") or 300),
+        quality=str(getattr(overrides, "quality", None) or raw.get("quality") or runtime.quality),
+        output_format=str(getattr(overrides, "output_format", None) or raw.get("output_format") or runtime.output_format),
+        model=str(getattr(overrides, "model", None) or raw.get("model") or runtime.model),
+        request_timeout=int(raw.get("request_timeout") or 300),
         max_retries=int(raw.get("max_retries") or 2),
         max_rounds=int(raw.get("max_rounds") or 5),
         request_interval=float(raw.get("request_interval") or 1),
@@ -225,7 +279,7 @@ def classify_failure(message: str) -> str:
     if "timeout" in text or "timed out" in text or "read timed out" in text:
         return "timeout"
     if "500" in text or "502" in text or "503" in text or "504" in text:
-        return "upstream"
+        return "service"
     if "no supported images" in text or "input directory" in text:
         return "input_path"
     if "connection" in text or "network" in text or "dns" in text:
@@ -236,9 +290,9 @@ def classify_failure(message: str) -> str:
 def human_advice(category: str) -> str:
     advice = {
         "api_key": f"Image API key looks invalid or missing. Check the dedicated config file or {API_KEY_ENV_VAR}.",
-        "rate_limit": "The upstream service is rate-limiting requests. Increase request_interval or retry later.",
+        "rate_limit": "The image API is rate-limiting requests. Increase request_interval or retry later.",
         "timeout": "The request timed out. Increase request_timeout and rerun the same job.",
-        "upstream": "The upstream image service returned a temporary server error. Rerun the same job; existing outputs will be skipped.",
+        "service": "The image API returned a server error. Rerun the same job; existing outputs will be skipped.",
         "input_path": "The input path or image files look wrong. Check the input directory and supported extensions.",
         "network": "The machine may not be able to reach the API service. Check network connectivity or base_url.",
         "unknown": "The failure needs log inspection. Review the raw error lines near failed requests.",
@@ -269,16 +323,15 @@ def edit_image(
                         "size": job.size,
                         "quality": job.quality,
                         "output_format": job.output_format,
+                        "response_format": "b64_json",
                     },
                     timeout=job.request_timeout,
                 )
             log(f"    [response] HTTP {response.status_code}")
             response.raise_for_status()
-            result = response.json()
-            b64_json = result["data"][0]["b64_json"]
-            return base64.b64decode(b64_json)
+            return decode_image_response(response)
         except Exception as exc:
-            message = str(exc)
+            message = safe_request_error(exc)
             category = classify_failure(message)
             failures.append(
                 {
@@ -313,6 +366,7 @@ def run_tasks(
         if img_bytes:
             out_path.parent.mkdir(parents=True, exist_ok=True)
             out_path.write_bytes(img_bytes)
+            report_image_size(img_bytes, job.size, log)
             done += 1
             log(f"  [ok] saved: {out_path}")
         else:
@@ -334,6 +388,8 @@ def validate(runtime: RuntimeConfig, job: JobConfig) -> None:
         raise ValueError(f"Input directory does not exist: {job.input_dir}")
     if not job.prompts:
         raise ValueError("No prompts configured")
+    if not job.model.strip():
+        raise ValueError("model must be a non-empty model ID supported by the configured image API")
     if job.output_format not in {"png", "jpeg", "webp"}:
         raise ValueError("output_format must be one of: png, jpeg, webp")
 
@@ -362,7 +418,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--user-config", type=Path, help="Override user config JSON path")
     parser.add_argument("--api-key", help="Override API key")
     parser.add_argument("--base-url", help="Override base URL")
-    parser.add_argument("--model", help="Override model")
+    parser.add_argument("--model", help=f"Override job model (default: {DEFAULT_MODEL})")
     parser.add_argument("--quality", help="Override quality")
     parser.add_argument("--output-format", help="Override output format")
     parser.add_argument("--smoke-test", action="store_true", help="Run only the first image and first prompt")
@@ -374,7 +430,7 @@ def main() -> int:
     args = parse_args()
     user_config = load_user_config(args.user_config)
     runtime = resolve_runtime_config(args, user_config)
-    job = load_job_config(args.job, runtime, args.smoke_test)
+    job = load_job_config(args.job, runtime, args.smoke_test, overrides=args)
     validate(runtime, job)
     log, log_path = make_logger(job.output_dir)
 
@@ -390,7 +446,8 @@ def main() -> int:
     total = len(all_tasks)
     completed = total - len(filter_pending(all_tasks))
     log(f"input images: {len(images)}, prompts: {len(job.prompts)}, target outputs: {total}")
-    log(f"base_url: {runtime.base_url}")
+    log("endpoint: /images/edits")
+    log(f"model: {job.model}, size: {job.size}, quality: {job.quality}")
     log(f"output_dir: {job.output_dir}")
     log(f"log_path: {log_path}")
     if args.plan_only:

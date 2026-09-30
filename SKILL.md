@@ -11,8 +11,8 @@ description: 自然语言图像生成与编辑工作流自动化。当用户要�
 
 ## 强制停止规则
 
-- `size` 使用 `auto` 或 `宽x高` 格式。常用值为 `1024x1024`、`1536x1024`、`1024x1536`、`2048x2048`、`2048x1152`、`1152x2048`、`3840x2160`、`2160x3840`；接口也支持 `800x600` 等自定义尺寸。不得自行静默修改用户指定的分辨率。
-- 如果 AI 图像 API 因以下原因无法运行：密钥缺失/无效、base URL 不可达、配额/限流、网络故障、超时或上游服务错误，分析日志后停止工作流。
+- `size` 使用 `auto` 或 `宽x高` 格式。未指定时使用 `auto`；不得自行静默修改用户指定的分辨率。
+- 如果 AI 图像 API 因以下原因无法运行：密钥缺失/无效、base URL 不可达、配额/限流、网络故障、超时或服务错误，分析日志后停止工作流。
 - 不得静默地将 AI 图像生成或编辑任务替换为本地 PIL/OpenCV 滤镜、截图、占位图、模拟输出、非 AI 图像处理或任何近似替代方案。
 - 只有在明确告知用户"这不是 AI 生成"并得到用户明确同意后，才可以提供非 AI 降级方案。
 - 遇到阻塞时，说明阻塞原因、下一步具体操作，以及同一任务是否可以安全重跑。不得为了"推进进度"而生成替代图片。
@@ -26,20 +26,22 @@ description: 自然语言图像生成与编辑工作流自动化。当用户要�
 
 ## 文生图
 
-调用脚本时至少提供一条 `--prompt` 和输出目录。每重复一次 `--prompt` 生成一张图片；接口当前即使 `n > 1` 也只返回一张，因此不要依赖 `n` 批量生成。
+调用脚本时至少提供一条 `--prompt` 和输出目录。每重复一次 `--prompt` 发起一次 `n=1` 请求，生成一张图片。
 
 ```bash
 python3 /path/to/intent-image-pipeline/scripts/text_to_image.py \
   --prompt "一只橘猫坐在窗台上看夕阳，水彩画风格" \
   --output-dir /absolute/path/to/output \
-  --size 1024x1024 \
-  --quality high
+  --model gpt-image-2.5-sunburst \
+  --size auto \
+  --quality auto
 ```
 
 可选参数：
 
+- `--model`：默认 `gpt-image-2.5-sunburst`，也可选择 `gpt-image-2.5-flare`、`gpt-image-2` 或所配置接口支持的其他完整模型 ID。
 - `--size`：默认 `auto`，也可用常用尺寸或自定义 `宽x高`。
-- `--quality`：`auto`、`low`、`medium`、`high`。
+- `--quality`：`auto`、`low`、`medium`、`high`，默认 `auto`。
 - `--output-format`：`png`、`jpeg`、`webp`。
 - `--output-compression`：0-100，仅 `jpeg`/`webp` 有效。
 - `--request-timeout`：默认且最小 120 秒。
@@ -47,7 +49,15 @@ python3 /path/to/intent-image-pipeline/scripts/text_to_image.py \
 - `--filename-prefix`：输出文件名前缀，默认 `generated`。
 - `--plan-only`：只校验并打印计划，不调用 API。
 
-脚本向 `POST /images/generations` 发送 JSON，请求模型固定为 `gpt-image-2`，并将响应中的 `data[0].b64_json` 解码为图片文件。输出默认命名为 `generated_01.png`；重复运行时跳过已存在文件。
+脚本向 `POST /images/generations` 发送 JSON，将选择的完整模型 ID 原样发送，显式请求 `response_format=b64_json`，并将响应中的 `data[0].b64_json` 解码为图片文件。图片编辑也显式请求相同返回格式。输出默认命名为 `generated_01.png`；重复运行时跳过已存在文件。
+
+## Image 2.5 模型与参数
+
+默认使用 `gpt-image-2.5-sunburst`，可显式选择 `gpt-image-2.5-flare` 或 `gpt-image-2`。脚本不提供 `image2.5` 或 `gpt-image-2.5` 别名。用户只说“image2.5”时使用默认 sunburst 并说明选择；明确指定 flare 或其他模型时保留用户选择，不自动切换模型。
+
+文生图和图片编辑均默认 `size=auto`、`quality=auto`。用户要求固定尺寸或质量时原样发送参数，失败后参考故障排查，不静默改成 `auto`。`auto` 不保证 4K 或最高质量；确认精确尺寸时以输出图片的实际像素为准。
+
+已有配置或 job 中明确指定的旧模型、高质量、固定尺寸继续生效；更换模型时使用新的输出目录或文件名前缀，避免断点续跑跳过旧模型的已有图片。
 
 ## 图生图 / 图片编辑
 
@@ -86,18 +96,17 @@ python3 /path/to/intent-image-pipeline/scripts/image_pipeline.py --job /path/to/
 {
   "api_key": "sk-...",
   "base_url": "https://api.qijixing.fun/v1",
-  "default_model": "gpt-image-2",
-  "default_quality": "high",
+  "default_model": "gpt-image-2.5-sunburst",
+  "default_quality": "auto",
   "default_format": "png"
 }
 ```
 
 解析优先级：
 
-1. CLI 参数覆盖
-2. 专用环境变量：`QIJIXING_IMAGE_API_KEY`、`QIJIXING_IMAGE_BASE_URL`
-3. 用户配置文件
-4. 默认值（`base_url` 默认为 `https://api.qijixing.fun/v1`）
+模型、质量和格式：CLI 参数 > job 字段（仅编辑任务）> 用户配置 > 默认值。
+
+凭据和 base URL：CLI 参数 > 专用环境变量（`QIJIXING_IMAGE_API_KEY`、`QIJIXING_IMAGE_BASE_URL`）> 用户配置 > 默认值（`base_url` 默认为 `https://api.qijixing.fun/v1`）。尺寸使用文生图 `--size` 或编辑 job 的 `size`，未指定时为 `auto`。
 
 配置文件不存在时，告知用户应在哪里创建。如果用户在对话中粘贴密钥并要求配置，立即将其写入专用配置文件，然后提醒该密钥已在对话中暴露，建议重新生成并替换配置文件中的值。
 
@@ -112,10 +121,10 @@ python3 /path/to/intent-image-pipeline/scripts/image_pipeline.py --job /path/to/
   "prompts": [
     "Keep the product unchanged. Create a clean bright ecommerce main image."
   ],
-  "size": "1024x1024",
-  "quality": "high",
+  "size": "auto",
+  "quality": "auto",
   "output_format": "png",
-  "model": "gpt-image-2",
+  "model": "gpt-image-2.5-sunburst",
   "request_timeout": 300,
   "max_retries": 2,
   "max_rounds": 5,
@@ -128,8 +137,11 @@ python3 /path/to/intent-image-pipeline/scripts/image_pipeline.py --job /path/to/
 
 ## 输出规则
 
+- 只解码 `data[0].b64_json` 并保存为本地图片；忽略响应中的 `url` 字段，不返回、展示或下载该链接。缺少有效 Base64 数据时任务失败。
+- 不输出原始响应正文或异常中的远端地址。仅汇报 HTTP 状态、失败类别、安全诊断和本地文件路径。
+- 请求固定尺寸时核对图片的实际像素；尺寸不符须明确报告未满足尺寸要求，不自动缩放或把出图成功当作尺寸验证通过。脚本会记录 PNG 实际尺寸及不匹配警告；其他格式需检查保存后的图片。
 - 保留原始源文件，不得修改。
 - 批量图生图时，输出放在 `output_dir/<源文件名>/prompt_XX.<格式>` 下。
 - 脚本跳过已存在的输出文件，支持断点续跑。
 - 出现失败时，检查 `run.log`、脚本的 `failure_summary`，并参考 `references/troubleshooting.md` 的常见修复方法。
-- 用用户能理解的语言汇报结果，包含最可能的原因和下一步操作。除非原始 API 错误信息有助于用户采取行动，否则不要直接暴露它。
+- 用用户能理解的语言汇报结果，包含最可能的原因和下一步操作。

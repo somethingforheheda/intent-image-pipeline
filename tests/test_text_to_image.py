@@ -62,6 +62,7 @@ class TextToImageTests(unittest.TestCase):
                 "size": "1024x1024",
                 "quality": "high",
                 "output_format": "webp",
+                "response_format": "b64_json",
                 "output_compression": 80,
             },
             timeout=120,

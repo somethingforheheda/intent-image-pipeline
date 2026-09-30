@@ -4,8 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import base64
-import binascii
 import json
 import re
 import sys
@@ -21,9 +19,12 @@ from image_pipeline import (
     DEFAULT_MODEL,
     DEFAULT_QUALITY,
     classify_failure,
+    decode_image_response,
     human_advice,
     load_user_config,
     resolve_runtime_config,
+    report_image_size,
+    safe_request_error,
     user_config_path,
 )
 
@@ -76,8 +77,8 @@ def validate_args(args: argparse.Namespace, api_key: str, model: str, quality: s
             f"Missing image-generation API key. Create {user_config_path()} with an api_key field, "
             f"or set {API_KEY_ENV_VAR}."
         )
-    if model != "gpt-image-2":
-        raise ValueError("model must be gpt-image-2 for this API")
+    if not model.strip():
+        raise ValueError("model must be a non-empty model ID supported by the configured image API")
     if args.size != "auto" and not SIZE_RE.fullmatch(args.size):
         raise ValueError("size must be auto or WIDTHxHEIGHT, for example 1024x1024 or 800x600")
     if quality not in VALID_QUALITIES:
@@ -101,20 +102,6 @@ def validate_args(args: argparse.Namespace, api_key: str, model: str, quality: s
         raise ValueError("prompt cannot be empty")
 
 
-def decode_image_response(response: requests.Response) -> bytes:
-    try:
-        payload: Dict[str, Any] = response.json()
-        encoded = payload["data"][0]["b64_json"]
-    except (ValueError, KeyError, IndexError, TypeError) as exc:
-        raise ValueError("API response does not contain data[0].b64_json") from exc
-    if not isinstance(encoded, str) or not encoded:
-        raise ValueError("API returned an empty data[0].b64_json value")
-    try:
-        return base64.b64decode(encoded, validate=True)
-    except (binascii.Error, ValueError) as exc:
-        raise ValueError("API returned invalid base64 image data") from exc
-
-
 def generate_one(
     *,
     prompt: str,
@@ -135,6 +122,7 @@ def generate_one(
         "size": size,
         "quality": quality,
         "output_format": output_format,
+        "response_format": "b64_json",
     }
     if output_compression is not None:
         body["output_compression"] = output_compression
@@ -153,14 +141,15 @@ def generate_one(
             response.raise_for_status()
             return decode_image_response(response)
         except Exception as exc:
-            category = classify_failure(str(exc))
+            message = safe_request_error(exc)
+            category = classify_failure(message)
             print(
                 f"[failed {attempt}/{max_retries}] {category}: {human_advice(category)}",
                 file=sys.stderr,
                 flush=True,
             )
             if attempt == max_retries:
-                raise RuntimeError(f"Image generation failed after {max_retries} attempt(s): {exc}") from exc
+                raise RuntimeError(f"Image generation failed after {max_retries} attempt(s): {message}") from None
             time.sleep(2 ** (attempt - 1))
     raise AssertionError("unreachable")
 
@@ -175,7 +164,7 @@ def main() -> int:
 
     output_dir = args.output_dir.expanduser().resolve()
     plan = {
-        "endpoint": f"{runtime.base_url}/images/generations",
+        "endpoint": "/images/generations",
         "model": runtime.model,
         "count": len(args.prompt),
         "size": args.size,
@@ -210,6 +199,7 @@ def main() -> int:
             max_retries=args.max_retries,
         )
         output_path.write_bytes(image_bytes)
+        report_image_size(image_bytes, args.size, lambda message: print(message, flush=True))
         completed.append(output_path)
         print(f"[ok] saved: {output_path}", flush=True)
         if index < len(args.prompt):

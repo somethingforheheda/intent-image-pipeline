@@ -24,11 +24,27 @@ Create a config file at `~/.config/qijixing-image/config.json`:
 {
   "api_key": "sk-...",
   "base_url": "https://api.qijixing.fun/v1",
-  "default_model": "gpt-image-2",
-  "default_quality": "high",
+  "default_model": "gpt-image-2.5-sunburst",
+  "default_quality": "auto",
   "default_format": "png"
 }
 ```
+
+## Image models
+
+The default is `gpt-image-2.5-sunburst`. Select
+`gpt-image-2.5-sunburst`, `gpt-image-2.5-flare`, or `gpt-image-2`; both generation
+and editing pass the selected model ID through unchanged. Use the exact ID:
+`image2.5` and `gpt-image-2.5` are not aliases supplied by this skill.
+
+Select a model with `--model`, a job's `model`, or config `default_model`.
+Precedence is CLI > job (editing only) > config > built-in default. Other model
+IDs are also accepted when your configured OpenAI-compatible image API supports
+them. Existing configurations that explicitly select `gpt-image-2` keep using it.
+
+Size and quality default to `auto`. Explicit sizes and quality settings are
+preserved. `auto` does not guarantee a particular resolution or maximum quality;
+verify exact dimensions from the output image.
 
 ## Usage
 
@@ -46,12 +62,16 @@ For direct text-to-image generation, Codex runs:
 python3 scripts/text_to_image.py \
   --prompt "赛博朋克风格的城市夜景" \
   --output-dir /path/to/output \
-  --size 1536x1024 \
-  --quality high
+  --model gpt-image-2.5-sunburst \
+  --size auto \
+  --quality auto
 ```
 
-The script calls `POST /images/generations`, waits at least 120 seconds per
+The script calls `POST /images/generations` with `response_format=b64_json`, waits at least 120 seconds per
 request, retries transient failures, and decodes `data[0].b64_json` to an image.
+Both scripts ignore response `url` fields and save only decoded image data to
+local files. URL-only responses fail without returning or downloading the link.
+Errors and logs omit remote addresses and raw response bodies.
 
 ## Job JSON example
 
@@ -60,9 +80,9 @@ request, retries transient failures, and decodes `data[0].b64_json` to an image.
   "input_dir": "/path/to/input",
   "output_dir": "/path/to/output",
   "prompts": ["Keep the product unchanged. Create a clean bright ecommerce main image."],
-  "size": "1024x1024",
-  "quality": "high",
-  "model": "gpt-image-2",
+  "size": "auto",
+  "quality": "auto",
+  "model": "gpt-image-2.5-sunburst",
   "max_retries": 2
 }
 ```
